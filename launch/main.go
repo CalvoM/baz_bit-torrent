@@ -8,11 +8,12 @@ import (
 )
 
 func main() {
-	file, err := os.Open("samples/numbers.torrent")
+	file, err := os.Open("samples/alice.torrent")
 	if err != nil {
 		panic(err)
 	}
 	defer file.Close()
 	bencoding := bazbittorrent.NewDecoder(file)
-	fmt.Println(bencoding.Decode())
+	v, _ := bencoding.DecodeToJSON()
+	fmt.Println(string(v.(string)))
 }

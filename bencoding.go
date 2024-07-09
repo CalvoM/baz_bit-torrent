@@ -3,8 +3,11 @@ package bazbittorrent
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"strconv"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 type BencodingDecoder struct {
@@ -17,7 +20,7 @@ func NewDecoder(r io.Reader) *BencodingDecoder {
 	return &BencodingDecoder{r: bufio.NewReader(r), bytesRead: 0}
 }
 
-func (d *BencodingDecoder) DecodeDict() (value map[any]any, err error) {
+func (d *BencodingDecoder) DecodeDict() (value map[string]any, err error) {
 	ch, err := d.readByte()
 	if err != nil {
 		return
@@ -25,7 +28,7 @@ func (d *BencodingDecoder) DecodeDict() (value map[any]any, err error) {
 	if ch != 'd' {
 		panic("expected 'd' for dictionary")
 	}
-	value = make(map[any]any)
+	value = make(map[string]any)
 	next, err := d.peek()
 	if err != nil {
 		return
@@ -52,14 +55,14 @@ func (d *BencodingDecoder) DecodeDict() (value map[any]any, err error) {
 			}
 			tempHolder = append(tempHolder, l)
 		case 'd':
-			d, derr := d.DecodeDict()
+			dict, derr := d.DecodeDict()
 			if derr != nil {
 				return
 			}
-			tempHolder = append(tempHolder, d)
+			tempHolder = append(tempHolder, dict)
 		}
 		if len(tempHolder) == 2 {
-			value[tempHolder[0]] = tempHolder[1]
+			value[tempHolder[0].(string)] = tempHolder[1]
 			tempHolder = nil
 		}
 		next, err = d.peek()
@@ -137,6 +140,12 @@ func (d *BencodingDecoder) DecodeList() (value []any, err error) {
 			}
 			value = append(value, l)
 
+		case 'd':
+			dict, derr := d.DecodeDict()
+			if derr != nil {
+				return
+			}
+			value = append(value, dict)
 		}
 		next, err = d.peek()
 		if err != nil {
@@ -146,23 +155,26 @@ func (d *BencodingDecoder) DecodeList() (value []any, err error) {
 	return
 }
 
-func (d *BencodingDecoder) DecodeToJSON() string {
+func (d *BencodingDecoder) DecodeToJSON() (any, any) {
 	next, err := d.peek()
 	if err != nil {
-		return ""
+		return "", ""
 	}
+	var finalVal any
 	switch next {
 	case 'i':
-		return "integer"
+		return "integer", ""
 	case 'l':
-		return "list"
+		return "list", ""
 	case 'd':
-		return "dictionary"
+		finalVal, _ = d.DecodeDict()
 	default:
 		err = errors.New("invalid Input")
-		return string(err.Error())
+		return string(err.Error()), ""
 	}
-	return ""
+	// json := jsoniter.ConfigCompatibleWithStandardLibrary
+	fmt.Println(finalVal)
+	return jsoniter.Marshal(finalVal)
 }
 
 func (d *BencodingDecoder) peek() (b byte, err error) {
