@@ -62,8 +62,8 @@ func TestDecodeList(t *testing.T) {
 func TestDecodeDict(t *testing.T) {
 	tests := []struct {
 		input    string
-		expected map[any]any
-	}{{"d1:a1:be", map[any]any{"a": "b"}}, {"d5:namesl4:sean5:shawni5ee", map[any]any{"names": []any{"sean", "shawn", 5}}}, {"d4:infod4:test5:valueee", map[any]any{"info": map[any]any{"test": "value"}}}}
+		expected map[string]any
+	}{{"d1:a1:be", map[string]any{"a": "b"}}, {"d5:namesl4:sean5:shawni5ee", map[string]any{"names": []any{"sean", "shawn", 5}}}, {"d4:infod4:test5:valueee", map[string]any{"info": map[string]any{"test": "value"}}}}
 	for _, test := range tests {
 		bencoding := bazbittorrent.NewDecoder(strings.NewReader(test.input))
 		actual, _ := bencoding.DecodeDict()

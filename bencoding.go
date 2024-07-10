@@ -3,11 +3,8 @@ package bazbittorrent
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"io"
 	"strconv"
-
-	jsoniter "github.com/json-iterator/go"
 )
 
 type BencodingDecoder struct {
@@ -70,6 +67,7 @@ func (d *BencodingDecoder) DecodeDict() (value map[string]any, err error) {
 			return
 		}
 	}
+	d.readBytes('e')
 	return
 }
 
@@ -152,29 +150,24 @@ func (d *BencodingDecoder) DecodeList() (value []any, err error) {
 			return
 		}
 	}
+	d.readBytes('e')
 	return
 }
 
-func (d *BencodingDecoder) DecodeToJSON() (any, any) {
+func (d *BencodingDecoder) Decode() (map[string]any, error) {
 	next, err := d.peek()
 	if err != nil {
-		return "", ""
+		return nil, err
 	}
-	var finalVal any
+	var finalVal map[string]any
 	switch next {
-	case 'i':
-		return "integer", ""
-	case 'l':
-		return "list", ""
 	case 'd':
 		finalVal, _ = d.DecodeDict()
 	default:
-		err = errors.New("invalid Input")
-		return string(err.Error()), ""
+		err = errors.New("invalid Start of bencoding")
+		return nil, err
 	}
-	// json := jsoniter.ConfigCompatibleWithStandardLibrary
-	fmt.Println(finalVal)
-	return jsoniter.Marshal(finalVal)
+	return finalVal, err
 }
 
 func (d *BencodingDecoder) peek() (b byte, err error) {
@@ -199,7 +192,7 @@ func (d *BencodingDecoder) readBytes(delim byte) (line []byte, err error) {
 }
 
 func (d *BencodingDecoder) read(p []byte) (n int, err error) {
-	n, err = d.r.Read(p)
+	n, err = io.ReadFull(d.r, p)
 	d.bytesRead += n
 	return
 }
