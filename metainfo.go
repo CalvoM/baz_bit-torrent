@@ -1,12 +1,13 @@
 package bazbittorrent
 
 import (
+	"crypto/sha1"
 	"encoding/json"
 	"os"
 )
 
-type Mapable struct {
-	*MetaInfoFile
+type Mapable interface {
+	UnMarshallToDict() map[string]any
 }
 
 type MultiFiles struct {
@@ -55,8 +56,27 @@ func (metainfofile *MetaInfoFile) UnMarshalFile(filename string) {
 	}
 }
 
-func (metainfofile *MetaInfoFile) UnMarshallToDict() (ret map[string]any) {
+func (metainfofile MetaInfoFile) UnMarshallToDict() (ret map[string]any) {
 	jstr, err := json.Marshal(metainfofile)
+	if err != nil {
+		panic(err)
+	}
+	ret = make(map[string]any)
+	err = json.Unmarshal(jstr, &ret)
+	if err != nil {
+		panic(err)
+	}
+	return
+}
+
+func (metainfofile MetaInfoFile) InfoHash() [20]byte {
+	enc := BencodingEncoder{}
+	enc.Encode(metainfofile.Info)
+	return sha1.Sum([]byte(enc.EncodedData))
+}
+
+func (info Info) UnMarshallToDict() (ret map[string]any) {
+	jstr, err := json.Marshal(info)
 	if err != nil {
 		panic(err)
 	}
