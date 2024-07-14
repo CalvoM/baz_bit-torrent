@@ -3,7 +3,10 @@ package bazbittorrent
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
+	"reflect"
+	"slices"
 	"strconv"
 )
 
@@ -11,6 +14,10 @@ type BencodingDecoder struct {
 	r         *bufio.Reader
 	bytesRead int
 	data      map[string]any
+}
+
+type BencodingEncoder struct {
+	EncodedData string
 }
 
 func NewDecoder(r io.Reader) *BencodingDecoder {
@@ -195,4 +202,64 @@ func (d *BencodingDecoder) read(p []byte) (n int, err error) {
 	n, err = io.ReadFull(d.r, p)
 	d.bytesRead += n
 	return
+}
+
+func (e *BencodingEncoder) Encode(decoded Mapable) {
+	// TODO: Expand to other data types, now we handle structs.
+	supportedTypes := []reflect.Kind{reflect.Struct}
+	k := reflect.TypeOf(decoded).Kind()
+	if !slices.Contains(supportedTypes, k) {
+		errMsg := fmt.Sprintf("Data type not supported: %v", k)
+		panic(errMsg)
+	}
+	decodedMap := decoded.UnMarshallToDict()
+	e.EncodedData += e.bencodeMap(decodedMap)
+}
+
+func (e BencodingEncoder) bencodeMap(decodeMap map[string]any) string {
+	bencodeMap := "d"
+	for key, value := range decodeMap {
+		switch reflect.TypeOf(value).Kind() {
+		case reflect.String:
+			bencodeMap += e.bencodeStr(key) + e.bencodeStr(value.(string))
+		case reflect.Float64:
+			bencodeMap += e.bencodeStr(key) + e.bencodeInt(value.(float64))
+		case reflect.Slice:
+			bencodeMap += e.bencodeStr(key) + e.bencodeSlice(value.([]any))
+		case reflect.Map:
+			bencodeMap += e.bencodeStr(key) + e.bencodeMap(value.(map[string]any))
+		default:
+			fmt.Printf("Found this new %v: %v of type: %v\r\n", key, value, reflect.TypeOf(value).Kind())
+		}
+	}
+	bencodeMap += "e"
+	return bencodeMap
+}
+
+func (e BencodingEncoder) bencodeStr(decodeStr string) string {
+	return fmt.Sprintf("%d:%s", len(decodeStr), decodeStr)
+}
+
+func (e BencodingEncoder) bencodeInt(decodeInt float64) string {
+	return fmt.Sprintf("i%fe", decodeInt)
+}
+
+func (e BencodingEncoder) bencodeSlice(decodeSlice []any) string {
+	bencodedList := "l"
+	for _, item := range decodeSlice {
+		switch reflect.TypeOf(item).Kind() {
+		case reflect.String:
+			bencodedList += e.bencodeStr(item.(string))
+		case reflect.Slice:
+			bencodedList += e.bencodeSlice(item.([]any))
+		case reflect.Int:
+			bencodedList += e.bencodeInt(item.(float64))
+		case reflect.Map:
+			bencodedList += e.bencodeMap(item.(map[string]any))
+		default:
+			fmt.Printf("Found this new list item type: %v\r\n", reflect.TypeOf(item).Kind())
+		}
+	}
+	bencodedList += "e"
+	return bencodedList
 }

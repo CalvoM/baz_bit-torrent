@@ -5,6 +5,10 @@ import (
 	"os"
 )
 
+type Mapable struct {
+	*MetaInfoFile
+}
+
 type MultiFiles struct {
 	Length int      `json:"length"`
 	Md5sum string   `json:"md5sum"` // optional
@@ -13,7 +17,7 @@ type MultiFiles struct {
 type Info struct {
 	PieceLength int          `json:"piece length"` // common
 	Pieces      string       `json:"pieces"`       // common
-	Private     uint64       `json:"private"`      // common optional
+	Private     int          `json:"private"`      // common optional
 	Name        string       `json:"name"`         // common
 	Length      int          `json:"length"`       // single-file
 	Md5sum      string       `json:"md5sum"`       // single-file optional
@@ -24,7 +28,7 @@ type MetaInfoFile struct {
 	Announce     string     `json:"announce"`
 	Info         Info       `json:"info"`
 	AnnounceList [][]string `json:"announce-list"` // optional
-	CreationDate int64      `json:"creation date"` // optional
+	CreationDate int        `json:"creation date"` // optional
 	Comment      string     `json:"comment"`       // optional
 	CreatedBy    string     `json:"created by"`    // optional
 	Encoding     string     `json:"encoding"`      // optional
@@ -49,4 +53,17 @@ func (metainfofile *MetaInfoFile) UnMarshalFile(filename string) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func (metainfofile *MetaInfoFile) UnMarshallToDict() (ret map[string]any) {
+	jstr, err := json.Marshal(metainfofile)
+	if err != nil {
+		panic(err)
+	}
+	ret = make(map[string]any)
+	err = json.Unmarshal(jstr, &ret)
+	if err != nil {
+		panic(err)
+	}
+	return
 }
