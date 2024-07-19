@@ -6,7 +6,8 @@ import (
 
 func main() {
 	m := bazbittorrent.MetaInfoFile{}
-	m.UnMarshalFile("samples/tears-of-steel.torrent")
+	// m.UnMarshalFile("samples/PoI_SSN1.torrent")
+	m.UnMarshalFile("samples/sintel.torrent")
 	client := bazbittorrent.Client{}
 	client.Init(m)
 	// var enc bazbittorrent.BencodingEncoder

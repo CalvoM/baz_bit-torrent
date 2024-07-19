@@ -2,19 +2,20 @@ package bazbittorrent
 
 import (
 	"net"
-	"net/url"
+
+	"github.com/CalvoM/baz_bit-torrent/udp"
 )
 
 const (
 	BitTorrentIdentifier = "BitTorrent protocol"
-	BazPeerID            = "BazeengaBitTorrent12"
+	BazPeerID            = "BazeengaBitTorrent24"
 )
 
 type HandShakePayLoad struct {
-	Identifier string
-	Reserved   []byte
-	InfoHash   [20]byte
-	PeerID     []byte
+	identifier string
+	reserved   []byte
+	infoHash   [20]byte
+	peerID     [20]byte
 }
 
 type Client struct {
@@ -22,21 +23,30 @@ type Client struct {
 	metaInfoFile MetaInfoFile
 }
 
+func (handShake *HandShakePayLoad) Build(PeerID []byte, InfoHash []byte) []byte {
+	handShake.identifier = BitTorrentIdentifier
+	handShake.reserved = []byte{0, 0, 0, 0, 0, 0, 0, 0}
+	handShake.infoHash = [20]byte(InfoHash)
+	handShake.peerID = [20]byte(PeerID)
+	outputBuf := make([]byte, len(handShake.identifier)+49)
+	outputBuf[0] = byte(19)
+	curr := 1
+	curr += copy(outputBuf[curr:], handShake.identifier)
+	curr += copy(outputBuf[curr:], handShake.reserved[:])
+	curr += copy(outputBuf[curr:], handShake.infoHash[:])
+	curr += copy(outputBuf[curr:], handShake.peerID[:])
+	return outputBuf
+}
+
 func (c *Client) Init(metaInfoFile MetaInfoFile) {
-	var err error
 	c.metaInfoFile = metaInfoFile
-	serverURL, _ := url.Parse(c.metaInfoFile.Announce)
-	c.conn, err = net.Dial(serverURL.Scheme, serverURL.Host)
+	c.SendConnectRequest()
+}
+
+func (c *Client) SendConnectRequest() {
+	udpTracker := udp.UDPTrackerProtocol{}
+	err := udpTracker.SendConnectRequest(c.metaInfoFile.HostDetails())
 	if err != nil {
 		panic(err)
 	}
-	handshake := HandShakePayLoad{Identifier: BitTorrentIdentifier, Reserved: []byte{0, 0, 0, 0, 0, 0, 0, 0}, PeerID: []byte(BazPeerID), InfoHash: c.metaInfoFile.InfoHash()}
-	outputBuf := make([]byte, len(handshake.Identifier)+49)
-	outputBuf[0] = byte(19)
-	curr := 1
-	curr += copy(outputBuf[curr:], handshake.Identifier)
-	curr += copy(outputBuf[curr:], handshake.Reserved[:])
-	curr += copy(outputBuf[curr:], handshake.InfoHash[:])
-	curr += copy(outputBuf[curr:], handshake.PeerID[:])
-	c.conn.Write(outputBuf)
 }
