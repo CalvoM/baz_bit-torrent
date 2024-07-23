@@ -45,8 +45,10 @@ func (c *Client) Init(metaInfoFile MetaInfoFile) {
 
 func (c *Client) SendConnectRequest() {
 	udpTracker := udp.UDPTrackerProtocol{}
-	err := udpTracker.SendConnectRequest(c.metaInfoFile.HostDetails())
+	err := udpTracker.ConnectToTracker(c.metaInfoFile.HostDetails())
 	if err != nil {
 		panic(err)
 	}
+	peerID := "BazeengaBitTorrent24"
+	udpTracker.AnnounceToTracker(c.metaInfoFile.InfoHash(), []byte(peerID), uint64(c.metaInfoFile.Info.Length))
 }

@@ -4,9 +4,13 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"time"
 )
 
-type Action uint32
+type (
+	Action uint32
+	Event  uint32
+)
 
 const (
 	Connect Action = iota
@@ -15,11 +19,18 @@ const (
 	Error
 )
 
+const (
+	None Event = iota
+	Completed
+	Started
+	Stopped
+)
+
 type UDPTrackerProtocol struct {
-	connDialer         net.Dialer
+	dialer             net.Dialer
+	conn               net.Conn
 	trackerURL         *url.URL
 	serverConnectionID uint64
-	transactionID      uint32
 }
 type UnEqualActionError struct {
 	Sent     Action
@@ -45,33 +56,43 @@ func checkErr(err error) {
 	}
 }
 
-func (udp *UDPTrackerProtocol) SendConnectRequest(possibleURLs []*url.URL) error {
+func (udp *UDPTrackerProtocol) ConnectToTracker(possibleURLs []*url.URL) error {
 	var payload ConnectRequestPayload
 	buf := payload.Build()
-	udp.connDialer = net.Dialer{}
-	conn, err := udp.connDialer.Dial(possibleURLs[3].Scheme, possibleURLs[3].Host)
+	udp.dialer = net.Dialer{Timeout: time.Duration(1) * time.Second}
+	var err error
+	udp.conn, err = udp.dialer.Dial(possibleURLs[3].Scheme, possibleURLs[3].Host)
 	if err != nil {
 		return err
 	}
-	d, err := conn.Write(buf)
+	d, err := udp.conn.Write(buf)
 	checkErr(err)
 	if d != len(buf) {
 		return fmt.Errorf("not all data sent")
 	}
 	resp := make([]byte, 16)
-	d, err = conn.Read(resp)
+	d, err = udp.conn.Read(resp)
 	checkErr(err)
 	if d != len(resp) {
 		return fmt.Errorf("not all data received")
 	}
 	var responsePayload ConnectResponsePayload
 	responsePayload.Marshall(resp)
-	udp.serverConnectionID = responsePayload.connectionID
 	if payload.transactionID != responsePayload.transactionID {
 		return UnEqualTransactionIDError{payload.transactionID, responsePayload.transactionID}
 	}
 	if payload.action != responsePayload.action {
 		return UnEqualActionError{payload.action, responsePayload.action}
 	}
+	udp.serverConnectionID = responsePayload.connectionID
+	return nil
+}
+
+func (udp *UDPTrackerProtocol) AnnounceToTracker(infoHash [20]byte, peerID []byte, left uint64) error {
+	var payload AnnounceRequestPayload
+	var p [20]byte
+	copy(p[:], peerID)
+	buf := payload.Build(udp.serverConnectionID, infoHash, p, left)
+	udp.conn.Write(buf)
 	return nil
 }
