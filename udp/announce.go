@@ -1,22 +1,43 @@
 package udp
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+)
 
-type AnnounceRequestPayload struct {
-	connectionID  uint64
-	action        Action
-	transactionID TransactionID
-	infoHash      [20]uint8
-	peerID        [20]uint8
-	downloaded    uint64
-	left          uint64
-	uploaded      uint64
-	event         Event
-	ip            uint32
-	key           uint32
-	numWant       int32
-	port          uint16
-}
+type (
+	Peer struct {
+		ip   uint32
+		port uint16
+	}
+	AnnounceResponsePayload struct {
+		action        Action
+		transactionID TransactionID
+		interval      uint32
+		leechers      uint32
+		seeders       uint32
+		peers         []Peer
+	}
+	AnnounceRequestPayload struct {
+		connectionID  uint64
+		action        Action
+		transactionID TransactionID
+		infoHash      [20]uint8
+		peerID        [20]uint8
+		downloaded    uint64
+		left          uint64
+		uploaded      uint64
+		event         Event
+		ip            uint32
+		key           uint32
+		numWant       int32
+		port          uint16
+	}
+)
+
+const (
+	announceBasicIPV4RespSize = 20
+	peerSize                  = 6
+)
 
 func (payload *AnnounceRequestPayload) Build(connectionID uint64, infoHash [20]uint8, peerID [20]byte, left uint64) (buf []byte) {
 	payload.connectionID = connectionID
@@ -61,5 +82,24 @@ func (payload *AnnounceRequestPayload) Build(connectionID uint64, infoHash [20]u
 	twoByteBuf := make([]byte, 2)
 	binary.BigEndian.PutUint16(twoByteBuf, payload.port)
 	copy(buf[96:], fourByteBuf)
+	return
+}
+
+func (payload *AnnounceResponsePayload) Marshall(buf []byte) {
+	payload.action = Action(binary.BigEndian.Uint32(buf[0:]))
+	payload.transactionID = TransactionID(binary.BigEndian.Uint32(buf[4:]))
+	payload.interval = binary.BigEndian.Uint32(buf[8:])
+	payload.leechers = binary.BigEndian.Uint32(buf[12:])
+	payload.seeders = binary.BigEndian.Uint32(buf[16:])
+	payload.peers = nil
+}
+
+func MarshallPeers(buf []byte, peersCount int) (peers []Peer) {
+	for i := 0; i < peersCount; i++ {
+		var peer Peer
+		peer.ip = binary.BigEndian.Uint32(buf[i*6:])
+		peer.port = binary.BigEndian.Uint16(buf[(i*6)+4:])
+		peers = append(peers, peer)
+	}
 	return
 }

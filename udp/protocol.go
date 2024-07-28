@@ -93,6 +93,24 @@ func (udp *UDPTrackerProtocol) AnnounceToTracker(infoHash [20]byte, peerID []byt
 	var p [20]byte
 	copy(p[:], peerID)
 	buf := payload.Build(udp.serverConnectionID, infoHash, p, left)
-	udp.conn.Write(buf)
+	d, err := udp.conn.Write(buf)
+	checkErr(err)
+	if d != len(buf) {
+		return fmt.Errorf("not all data sent")
+	}
+	// We support 200 peers now.
+	resp := make([]byte, announceBasicIPV4RespSize+(200*peerSize))
+	_, err = udp.conn.Read(resp)
+	checkErr(err)
+	var responsePayload AnnounceResponsePayload
+	responsePayload.Marshall(resp)
+	if payload.transactionID != responsePayload.transactionID {
+		return UnEqualTransactionIDError{payload.transactionID, responsePayload.transactionID}
+	}
+	if payload.action != responsePayload.action {
+		return UnEqualActionError{payload.action, responsePayload.action}
+	}
+	peersCount := responsePayload.leechers + responsePayload.seeders
+	responsePayload.peers = append(responsePayload.peers, MarshallPeers(resp[20:], int(peersCount))...)
 	return nil
 }
