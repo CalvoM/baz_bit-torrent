@@ -1,6 +1,7 @@
 package bazbittorrent
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/CalvoM/baz_bit-torrent/udp"
@@ -23,7 +24,7 @@ type Client struct {
 	metaInfoFile MetaInfoFile
 }
 
-func (handShake *HandShakePayLoad) Build(PeerID []byte, InfoHash []byte) []byte {
+func (handShake *HandShakePayLoad) Build(PeerID []byte, InfoHash [20]byte) []byte {
 	handShake.identifier = BitTorrentIdentifier
 	handShake.reserved = []byte{0, 0, 0, 0, 0, 0, 0, 0}
 	handShake.infoHash = [20]byte(InfoHash)
@@ -38,6 +39,17 @@ func (handShake *HandShakePayLoad) Build(PeerID []byte, InfoHash []byte) []byte 
 	return outputBuf
 }
 
+func (c *Client) sendHandShakeToClient(peer udp.Peer) {
+	conn, err := net.Dial("tcp", peer.URL())
+	if err != nil {
+		fmt.Println(err)
+	}
+	handshake := HandShakePayLoad{}
+	peerID := "BazeengaBitTorrent24"
+	buf := handshake.Build([]byte(peerID), c.metaInfoFile.InfoHash())
+	conn.Write(buf)
+}
+
 func (c *Client) Init(metaInfoFile MetaInfoFile) {
 	c.metaInfoFile = metaInfoFile
 	c.SendConnectRequest()
@@ -50,5 +62,10 @@ func (c *Client) SendConnectRequest() {
 		panic(err)
 	}
 	peerID := "BazeengaBitTorrent24"
-	udpTracker.AnnounceToTracker(c.metaInfoFile.InfoHash(), []byte(peerID), uint64(c.metaInfoFile.Info.Length))
+	peers, err := udpTracker.AnnounceToTracker(c.metaInfoFile.InfoHash(), []byte(peerID), uint64(c.metaInfoFile.Info.Length))
+	fmt.Println(err)
+	for _, peer := range peers {
+		c.sendHandShakeToClient(peer)
+		fmt.Println(peer.IP(), peer.Port())
+	}
 }

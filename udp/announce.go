@@ -2,6 +2,7 @@ package udp
 
 import (
 	"encoding/binary"
+	"fmt"
 )
 
 type (
@@ -35,9 +36,23 @@ type (
 )
 
 const (
-	announceBasicIPV4RespSize = 20
-	peerSize                  = 6
+	announceMinIPV4RespSize = 20
+	peerSize                = 6
 )
+
+func (peer Peer) IP() string {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, peer.ip)
+	return fmt.Sprintf("%d.%d.%d.%d", buf[0], buf[1], buf[2], buf[3])
+}
+
+func (peer Peer) Port() uint16 {
+	return peer.port
+}
+
+func (peer Peer) URL() string {
+	return fmt.Sprintf("%s:%d", peer.IP(), peer.port)
+}
 
 func (payload *AnnounceRequestPayload) Build(connectionID uint64, infoHash [20]uint8, peerID [20]byte, left uint64) (buf []byte) {
 	payload.connectionID = connectionID

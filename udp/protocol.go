@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"time"
 )
 
 type (
@@ -59,9 +58,9 @@ func checkErr(err error) {
 func (udp *UDPTrackerProtocol) ConnectToTracker(possibleURLs []*url.URL) error {
 	var payload ConnectRequestPayload
 	buf := payload.Build()
-	udp.dialer = net.Dialer{Timeout: time.Duration(1) * time.Second}
+	udp.dialer = net.Dialer{}
 	var err error
-	udp.conn, err = udp.dialer.Dial(possibleURLs[3].Scheme, possibleURLs[3].Host)
+	udp.conn, err = udp.dialer.Dial("udp", possibleURLs[3].Host)
 	if err != nil {
 		return err
 	}
@@ -88,7 +87,7 @@ func (udp *UDPTrackerProtocol) ConnectToTracker(possibleURLs []*url.URL) error {
 	return nil
 }
 
-func (udp *UDPTrackerProtocol) AnnounceToTracker(infoHash [20]byte, peerID []byte, left uint64) error {
+func (udp *UDPTrackerProtocol) AnnounceToTracker(infoHash [20]byte, peerID []byte, left uint64) ([]Peer, error) {
 	var payload AnnounceRequestPayload
 	var p [20]byte
 	copy(p[:], peerID)
@@ -96,21 +95,35 @@ func (udp *UDPTrackerProtocol) AnnounceToTracker(infoHash [20]byte, peerID []byt
 	d, err := udp.conn.Write(buf)
 	checkErr(err)
 	if d != len(buf) {
-		return fmt.Errorf("not all data sent")
+		return nil, fmt.Errorf("not all data sent")
 	}
 	// We support 200 peers now.
-	resp := make([]byte, announceBasicIPV4RespSize+(200*peerSize))
-	_, err = udp.conn.Read(resp)
+	resp := make([]byte, announceMinIPV4RespSize+(200*peerSize))
+	d, err = udp.conn.Read(resp)
+	if d <= announceMinIPV4RespSize {
+		return nil, fmt.Errorf("did not get minimum announce response (20) bytes, found: %d", d)
+	}
 	checkErr(err)
 	var responsePayload AnnounceResponsePayload
 	responsePayload.Marshall(resp)
 	if payload.transactionID != responsePayload.transactionID {
-		return UnEqualTransactionIDError{payload.transactionID, responsePayload.transactionID}
+		return nil, UnEqualTransactionIDError{payload.transactionID, responsePayload.transactionID}
 	}
 	if payload.action != responsePayload.action {
-		return UnEqualActionError{payload.action, responsePayload.action}
+		return nil, UnEqualActionError{payload.action, responsePayload.action}
 	}
 	peersCount := responsePayload.leechers + responsePayload.seeders
 	responsePayload.peers = append(responsePayload.peers, MarshallPeers(resp[20:], int(peersCount))...)
+	return responsePayload.peers, nil
+}
+
+func (udp *UDPTrackerProtocol) ScrapeTracker(infoHash [][20]byte) error {
+	var payload ScrapeRequestPayload
+	buf := payload.Build(udp.serverConnectionID, infoHash)
+	d, err := udp.conn.Write(buf)
+	checkErr(err)
+	if d != len(buf) {
+		return fmt.Errorf("not all data sent")
+	}
 	return nil
 }
